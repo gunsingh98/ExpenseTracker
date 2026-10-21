@@ -1,0 +1,35 @@
+# Java / Gradle
+build/
+.gradle/
+*.class
+
+# Node / Vite
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+
+# Secrets — never commit the service-account key
+*service-account*.json
+credentials*.json
+.env
+
+# Financial data — never commit the real workbook or its backups
+*.xlsx
+*.backup-*.xlsx
+# …but the bundled export template and the test fixture carry no real data.
+!src/main/resources/templates/tracker-template.xlsx
+!src/test/resources/sample-tracker.xlsx
+
+# SQLite data store (financial data + audit log) and its WAL sidecars
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# temporary files
+commands.txt
+# Logs & IDE
+*.log
+.idea/
+.vscode/
+*.iml
