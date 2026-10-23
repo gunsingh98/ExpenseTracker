@@ -18,7 +18,7 @@ import { api } from "../api/client";
 import { ErrorBanner, Loading, PageHeader } from "../components/ui";
 import { colorAt, formatDate, formatMoney } from "../format";
 import { useAsync } from "../hooks";
-import type { NetWorth, TypeFunds } from "../types";
+import type { MonthPoint, NetWorth, TypeFunds } from "../types";
 
 export default function Dashboard() {
   const [year, setYear] = useState<number | undefined>(undefined);
@@ -114,7 +114,11 @@ export default function Dashboard() {
         </Card>
 
         <Card title="Expenses by category">
-          <CategoryPie data={data.expenseByCategory} empty="No expenses recorded this year." />
+          <ExpenseBreakdown
+            byCategory={data.expenseByCategory}
+            monthly={data.monthlyTrend}
+            total={data.expensesThisYear}
+          />
         </Card>
 
         <Card title="Expenses by person">
@@ -205,6 +209,85 @@ function FundsByTypePie({ data }: { data: TypeFunds[] }) {
   );
 }
 
+/**
+ * Expenses by category, toggled between the whole year and a single month picked
+ * from a dropdown. Both views draw a category pie.
+ * The month defaults to the latest one that has spending.
+ */
+function ExpenseBreakdown({
+  byCategory,
+  monthly,
+  total,
+}: {
+  byCategory: { name: string; amount: number }[];
+  monthly: MonthPoint[];
+  total: number;
+}) {
+  const [view, setView] = useState<"year" | "month">("year");
+  const latestWithSpend = [...monthly].reverse().find((m) => m.expenses > 0)?.month ?? 1;
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const current = monthly.find((m) => m.month === (selectedMonth ?? latestWithSpend)) ?? monthly[0];
+  const showMonth = view === "month" && current != null;
+
+  return (
+    <>
+      <div className="chart-control chart-control-row">
+        <div className="segmented" role="group" aria-label="Expense period">
+          <button
+            type="button"
+            className={view === "year" ? "active" : undefined}
+            aria-pressed={view === "year"}
+            onClick={() => setView("year")}
+          >
+            Year
+          </button>
+          <button
+            type="button"
+            className={view === "month" ? "active" : undefined}
+            aria-pressed={view === "month"}
+            onClick={() => setView("month")}
+          >
+            Month
+          </button>
+        </div>
+        {showMonth && (
+          <select
+            value={current.month}
+            onChange={(e) => setSelectedMonth(Number(e.target.value))}
+            aria-label="Month"
+          >
+            {monthly.map((m) => (
+              <option key={m.month} value={m.month}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      {showMonth ? (
+        <>
+          <CategoryPie
+            data={current.expenseByCategory}
+            empty={`No expenses recorded in ${current.label}.`}
+          />
+          <div className="alloc-head" style={{ marginTop: 8, fontWeight: 600 }}>
+            <span>Total spent in {current.label}</span>
+            <span>{formatMoney(current.expenses)}</span>
+          </div>
+        </>
+      ) : (
+        <>
+          <CategoryPie data={byCategory} empty="No expenses recorded this year." />
+          <div className="alloc-head" style={{ marginTop: 8, fontWeight: 600 }}>
+            <span>Total spent this year</span>
+            <span>{formatMoney(total)}</span>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 function CategoryPie({ data, empty }: { data: { name: string; amount: number }[]; empty: string }) {
   const rows = data.filter((d) => d.amount > 0);
   if (rows.length === 0) return <p className="muted">{empty}</p>;
@@ -226,7 +309,6 @@ function CategoryPie({ data, empty }: { data: { name: string; amount: number }[]
           ))}
         </Pie>
         <Tooltip formatter={(v: number) => formatMoney(v)} />
-        <Legend wrapperStyle={{ fontSize: 12 }} />
       </PieChart>
     </ResponsiveContainer>
   );

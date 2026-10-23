@@ -185,8 +185,12 @@ public class DashboardService {
         income.stream().filter(i -> i.year() == year).forEach(i -> inc[i.month()] += i.amount());
         List<MonthPoint> points = new ArrayList<>(12);
         for (int m = 1; m <= 12; m++) {
+            int month = m;
             String label = Month.of(m).getDisplayName(TextStyle.SHORT, Locale.ENGLISH);
-            points.add(new MonthPoint(m, label, exp[m], inv[m], inc[m], inc[m] - exp[m]));
+            List<ExpenseRow> monthExpenses = expenses.stream()
+                    .filter(e -> e.year() == year && e.month() == month).toList();
+            points.add(new MonthPoint(m, label, exp[m], inv[m], inc[m], inc[m] - exp[m],
+                    sumBy(monthExpenses, ExpenseRow::category, ExpenseRow::amount)));
         }
         return points;
     }

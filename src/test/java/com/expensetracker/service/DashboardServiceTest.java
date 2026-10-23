@@ -82,6 +82,28 @@ class DashboardServiceTest {
     }
 
     @Test
+    void breaksDownEachMonthsExpensesByCategory() {
+        expense(LocalDate.of(2026, 1, 10), "Me", "Groceries", 1000);
+        expense(LocalDate.of(2026, 1, 20), "Husband", "Groceries", 500);
+        expense(LocalDate.of(2026, 1, 25), "Me", "Rent", 2000);
+        expense(LocalDate.of(2026, 3, 5), "Me", "Fuel", 300);
+        expense(LocalDate.of(2025, 1, 15), "Me", "Rent", 9999); // same month, other year, excluded
+
+        DashboardSummary s = service.summary(2026);
+
+        assertThat(s.monthlyTrend()).hasSize(12);
+        assertThat(s.monthlyTrend().get(0).expenseByCategory())
+                .extracting(DashboardSummary.NamedAmount::name, DashboardSummary.NamedAmount::amount)
+                .containsExactly( // sorted by amount desc
+                        org.assertj.core.groups.Tuple.tuple("Rent", 2000.0),
+                        org.assertj.core.groups.Tuple.tuple("Groceries", 1500.0));
+        assertThat(s.monthlyTrend().get(1).expenseByCategory()).isEmpty();
+        assertThat(s.monthlyTrend().get(2).expenseByCategory())
+                .extracting(DashboardSummary.NamedAmount::name, DashboardSummary.NamedAmount::amount)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("Fuel", 300.0));
+    }
+
+    @Test
     void aggregatesExpensesByOccasionExcludingUntaggedRows() {
         occasionExpense(LocalDate.of(2026, 1, 5), "Travel / Vacation", 15000, "Goa Trip");
         occasionExpense(LocalDate.of(2026, 1, 6), "Eating Out", 5000, "Goa Trip");
