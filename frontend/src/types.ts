@@ -140,6 +140,7 @@ export interface MonthPoint {
   income: number;
   savings: number;
   expenseByCategory: NamedAmount[];
+  expenseByOwner: NamedAmount[];
 }
 
 export interface NetWorth {

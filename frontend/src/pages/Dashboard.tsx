@@ -115,14 +115,20 @@ export default function Dashboard() {
 
         <Card title="Expenses by category">
           <ExpenseBreakdown
-            byCategory={data.expenseByCategory}
+            yearly={data.expenseByCategory}
             monthly={data.monthlyTrend}
+            monthKey="expenseByCategory"
             total={data.expensesThisYear}
           />
         </Card>
 
         <Card title="Expenses by person">
-          <CategoryPie data={data.expenseByOwner} empty="No expenses recorded this year." />
+          <ExpenseBreakdown
+            yearly={data.expenseByOwner}
+            monthly={data.monthlyTrend}
+            monthKey="expenseByOwner"
+            total={data.expensesThisYear}
+          />
         </Card>
 
         <Card title="Expenses by occasion / trip">
@@ -210,17 +216,20 @@ function FundsByTypePie({ data }: { data: TypeFunds[] }) {
 }
 
 /**
- * Expenses by category, toggled between the whole year and a single month picked
- * from a dropdown. Both views draw a category pie.
- * The month defaults to the latest one that has spending.
+ * An expense breakdown (by category or by person), toggled between the whole year
+ * and a single month picked from a dropdown. Both views draw a pie; `monthKey`
+ * picks which per-month breakdown to show. The month defaults to the latest one
+ * that has spending.
  */
 function ExpenseBreakdown({
-  byCategory,
+  yearly,
   monthly,
+  monthKey,
   total,
 }: {
-  byCategory: { name: string; amount: number }[];
+  yearly: { name: string; amount: number }[];
   monthly: MonthPoint[];
+  monthKey: "expenseByCategory" | "expenseByOwner";
   total: number;
 }) {
   const [view, setView] = useState<"year" | "month">("year");
@@ -267,7 +276,7 @@ function ExpenseBreakdown({
       {showMonth ? (
         <>
           <CategoryPie
-            data={current.expenseByCategory}
+            data={current[monthKey]}
             empty={`No expenses recorded in ${current.label}.`}
           />
           <div className="alloc-head" style={{ marginTop: 8, fontWeight: 600 }}>
@@ -277,7 +286,7 @@ function ExpenseBreakdown({
         </>
       ) : (
         <>
-          <CategoryPie data={byCategory} empty="No expenses recorded this year." />
+          <CategoryPie data={yearly} empty="No expenses recorded this year." />
           <div className="alloc-head" style={{ marginTop: 8, fontWeight: 600 }}>
             <span>Total spent this year</span>
             <span>{formatMoney(total)}</span>
@@ -288,29 +297,48 @@ function ExpenseBreakdown({
   );
 }
 
+/**
+ * A donut of the positive amounts, largest slice first, followed by the three
+ * largest slices with their share of the whole (colors match their slices).
+ */
 function CategoryPie({ data, empty }: { data: { name: string; amount: number }[]; empty: string }) {
-  const rows = data.filter((d) => d.amount > 0);
+  const rows = data.filter((d) => d.amount > 0).sort((a, b) => b.amount - a.amount);
   if (rows.length === 0) return <p className="muted">{empty}</p>;
+  const total = rows.reduce((s, r) => s + r.amount, 0);
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <PieChart>
-        <Pie
-          data={rows}
-          dataKey="amount"
-          nameKey="name"
-          cx="50%"
-          cy="50%"
-          outerRadius={90}
-          innerRadius={48}
-          paddingAngle={2}
-        >
-          {rows.map((_, i) => (
-            <Cell key={i} fill={colorAt(i)} />
-          ))}
-        </Pie>
-        <Tooltip formatter={(v: number) => formatMoney(v)} />
-      </PieChart>
-    </ResponsiveContainer>
+    <>
+      <ResponsiveContainer width="100%" height={260}>
+        <PieChart>
+          <Pie
+            data={rows}
+            dataKey="amount"
+            nameKey="name"
+            cx="50%"
+            cy="50%"
+            outerRadius={90}
+            innerRadius={48}
+            paddingAngle={2}
+          >
+            {rows.map((_, i) => (
+              <Cell key={i} fill={colorAt(i)} />
+            ))}
+          </Pie>
+          <Tooltip formatter={(v: number) => formatMoney(v)} />
+        </PieChart>
+      </ResponsiveContainer>
+      <ol className="top-slices" aria-label="Top 3">
+        {rows.slice(0, 3).map((r, i) => (
+          <li key={r.name}>
+            <span className="top-slice-swatch" style={{ background: colorAt(i) }} />
+            <span className="top-slice-name">{r.name}</span>
+            <span className="top-slice-amount">
+              {formatMoney(r.amount)}
+              <span className="muted"> · {Math.round((r.amount / total) * 100)}%</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </>
   );
 }
 

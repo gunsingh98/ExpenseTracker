@@ -190,7 +190,8 @@ public class DashboardService {
             List<ExpenseRow> monthExpenses = expenses.stream()
                     .filter(e -> e.year() == year && e.month() == month).toList();
             points.add(new MonthPoint(m, label, exp[m], inv[m], inc[m], inc[m] - exp[m],
-                    sumBy(monthExpenses, ExpenseRow::category, ExpenseRow::amount)));
+                    sumBy(monthExpenses, ExpenseRow::category, ExpenseRow::amount),
+                    sumBy(monthExpenses, ExpenseRow::paidBy, ExpenseRow::amount)));
         }
         return points;
     }

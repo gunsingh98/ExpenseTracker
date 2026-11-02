@@ -96,7 +96,7 @@ textarea:focus {
 
 .content {
   padding: 16px;
-  padding-bottom: 136px; /* clear the two-row bottom nav */
+  padding-bottom: 84px; /* clear the bottom nav */
   max-width: 1100px;
   margin: 0 auto;
 }
@@ -107,7 +107,7 @@ textarea:focus {
   left: 0;
   right: 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr); /* 4 per row → two tidy rows for 8 items */
+  grid-template-columns: repeat(5, 1fr); /* 4 primary pages + "More" */
   gap: 2px;
   background: var(--surface);
   border-top: 1px solid var(--border);
@@ -126,6 +126,8 @@ textarea:focus {
   font-size: 11px;
   padding: 8px 4px;
   border-radius: 12px;
+  border: none; /* reset for the "More" <button> */
+  background: none;
 }
 
 .bottom-label {
@@ -136,6 +138,36 @@ textarea:focus {
 }
 
 .bottom-link.active {
+  color: var(--primary);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.bottom-more {
+  position: absolute;
+  right: 8px;
+  bottom: calc(100% + 6px);
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.bottom-more-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.bottom-more-link.active {
   color: var(--primary);
   background: rgba(37, 99, 235, 0.08);
 }
@@ -442,6 +474,35 @@ textarea:focus {
 .alloc-fill {
   height: 100%;
   border-radius: 999px;
+}
+.top-slices {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+.top-slices li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.top-slice-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex: none;
+}
+.top-slice-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.top-slice-amount {
+  white-space: nowrap;
 }
 
 /* ---------- filters ---------- */

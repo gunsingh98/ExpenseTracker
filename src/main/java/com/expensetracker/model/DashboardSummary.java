@@ -36,9 +36,13 @@ public record DashboardSummary(
     public record TypeFunds(String type, List<Allocation> funds) {
     }
 
-    /** One month of the trend; {@code expenseByCategory} drives the dashboard's per-month category pie. */
+    /**
+     * One month of the trend; {@code expenseByCategory} and {@code expenseByOwner}
+     * drive the dashboard's per-month category and person pies.
+     */
     public record MonthPoint(int month, String label, double expenses, double invested,
-                             double income, double savings, List<NamedAmount> expenseByCategory) {
+                             double income, double savings, List<NamedAmount> expenseByCategory,
+                             List<NamedAmount> expenseByOwner) {
     }
 
     /**

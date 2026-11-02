@@ -1,4 +1,5 @@
-import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { api } from "./api/client";
 import { useAuth } from "./auth";
 import Login from "./pages/Login";
@@ -21,6 +22,9 @@ const NAV = [
   { to: "/lists", label: "Lists", icon: "⚙️" },
   { to: "/audit", label: "Audit Log", icon: "📜" },
 ];
+
+// Mobile bottom nav: the first pages are always visible, the rest sit under "More".
+const BOTTOM_PRIMARY = ["/dashboard", "/expenses", "/income", "/investments"];
 
 /** Fetches the .xlsx export (auth-protected) and triggers a browser download. */
 async function downloadExport(): Promise<void> {
@@ -103,14 +107,70 @@ export default function App() {
         </Routes>
       </main>
 
-      <nav className="bottom-nav">
-        {NAV.map((item) => (
-          <NavLink key={item.to} to={item.to} className="bottom-link">
-            <span className="nav-icon">{item.icon}</span>
-            <span className="bottom-label">{item.label}</span>
-          </NavLink>
-        ))}
-      </nav>
+      <BottomNav />
     </div>
+  );
+}
+
+/**
+ * Mobile bottom bar: four primary pages plus a "More" button that opens a menu
+ * of the remaining pages above the bar. "More" shows as active while one of
+ * those pages is open; the menu closes on navigation, outside tap, or Escape.
+ */
+function BottomNav() {
+  const primary = NAV.filter((item) => BOTTOM_PRIMARY.includes(item.to));
+  const more = NAV.filter((item) => !BOTTOM_PRIMARY.includes(item.to));
+  const { pathname } = useLocation();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLElement>(null);
+  const moreActive = more.some((item) => pathname.startsWith(item.to));
+
+  useEffect(() => setOpen(false), [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <nav className="bottom-nav" ref={ref}>
+      {primary.map((item) => (
+        <NavLink key={item.to} to={item.to} className="bottom-link">
+          <span className="nav-icon">{item.icon}</span>
+          <span className="bottom-label">{item.label}</span>
+        </NavLink>
+      ))}
+      <button
+        type="button"
+        className={`bottom-link${moreActive ? " active" : ""}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="nav-icon">☰</span>
+        <span className="bottom-label">More</span>
+      </button>
+      {open && (
+        <div className="bottom-more" role="menu">
+          {more.map((item) => (
+            <NavLink key={item.to} to={item.to} className="bottom-more-link" role="menuitem">
+              <span className="nav-icon">{item.icon}</span>
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </nav>
   );
 }
