@@ -58,9 +58,7 @@ public class InvestmentService {
      */
     public void setFundCurrentValue(String fundName, Double currentValue) {
         String key = normalize(fundName);
-        List<InvestmentRow> fund = dao.findAll().stream()
-                .filter(r -> normalize(r.name()).equals(key))
-                .toList();
+        List<InvestmentRow> fund = dao.findFund(key);
         if (fund.isEmpty()) {
             throw new IllegalArgumentException("No investments found for fund: " + fundName);
         }
@@ -85,9 +83,7 @@ public class InvestmentService {
      */
     public void deleteFund(String fundName) {
         String key = normalize(fundName);
-        List<InvestmentRow> fund = dao.findAll().stream()
-                .filter(r -> normalize(r.name()).equals(key))
-                .toList();
+        List<InvestmentRow> fund = dao.findFund(key);
         if (fund.isEmpty()) {
             throw new IllegalArgumentException("No investments found for fund: " + fundName);
         }

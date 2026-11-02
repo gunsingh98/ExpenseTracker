@@ -32,13 +32,11 @@ class InvestmentServiceFundTest {
     void setsValueOnMostRecentContributionAndClearsOtherRowsOfSameFund() {
         InvestmentRow jan = inv(5, LocalDate.of(2026, 1, 10), "PPFAS", 8000.0);
         InvestmentRow feb = inv(6, LocalDate.of(2026, 2, 10), "PPFAS", null);
-        InvestmentRow gold = inv(7, LocalDate.of(2026, 2, 10), "Gold", 3000.0); // different fund, untouched
-        when(dao.findAll()).thenReturn(List.of(jan, feb, gold));
+        when(dao.findFund("PPFAS")).thenReturn(List.of(feb, jan)); // DAO order: newest first
 
         service.setFundCurrentValue("PPFAS", 20000.0);
 
-        // Value lands on the latest PPFAS row (Feb, id 6); the earlier PPFAS row (id 5)
-        // is cleared; the Gold row is not referenced at all.
+        // Value lands on the latest PPFAS row (Feb, id 6); the earlier PPFAS row (id 5) is cleared.
         verify(dao).setFundCurrentValue(eq(6), eq(20000.0), eq(List.of(5)));
         verify(audit).record(AuditAction.UPDATE, EntityType.INVESTMENT, "fund:PPFAS",
                 null, new FundValueInput("PPFAS", 20000.0));
@@ -47,16 +45,16 @@ class InvestmentServiceFundTest {
     @Test
     void trimsFundNameWhenMatching() {
         InvestmentRow row = inv(5, LocalDate.of(2026, 1, 10), "PPFAS", null);
-        when(dao.findAll()).thenReturn(List.of(row));
+        when(dao.findFund("PPFAS")).thenReturn(List.of(row));
 
-        service.setFundCurrentValue("  PPFAS  ", 12000.0);
+        service.setFundCurrentValue("  PPFAS  ", 12000.0); // looked up by the trimmed name
 
         verify(dao).setFundCurrentValue(eq(5), eq(12000.0), eq(List.of()));
     }
 
     @Test
     void unknownFundThrows() {
-        when(dao.findAll()).thenReturn(List.of());
+        when(dao.findFund("Nope")).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.setFundCurrentValue("Nope", 100.0))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -66,21 +64,20 @@ class InvestmentServiceFundTest {
     void deleteFundRemovesEveryContributionOfThatFund() {
         InvestmentRow jan = inv(5, LocalDate.of(2026, 1, 10), "PPFAS", 8000.0);
         InvestmentRow feb = inv(6, LocalDate.of(2026, 2, 10), "PPFAS", null);
-        InvestmentRow gold = inv(7, LocalDate.of(2026, 2, 10), "Gold", 3000.0); // different fund, untouched
-        when(dao.findAll()).thenReturn(List.of(jan, feb, gold));
+        when(dao.findFund("PPFAS")).thenReturn(List.of(feb, jan));
 
         service.deleteFund("PPFAS");
 
-        // Both PPFAS rows (ids 5 and 6) are deleted together; Gold (id 7) is left alone.
-        verify(dao).deleteFund(eq(List.of(5, 6)));
+        // Both PPFAS rows (ids 6 and 5) are deleted together, and both are audited.
+        verify(dao).deleteFund(eq(List.of(6, 5)));
         verify(audit).record(AuditAction.DELETE, EntityType.INVESTMENT, "fund:PPFAS",
-                List.of(jan, feb), null);
+                List.of(feb, jan), null);
     }
 
     @Test
     void deleteFundTrimsName() {
         InvestmentRow row = inv(5, LocalDate.of(2026, 1, 10), "PPFAS", null);
-        when(dao.findAll()).thenReturn(List.of(row));
+        when(dao.findFund("PPFAS")).thenReturn(List.of(row));
 
         service.deleteFund("  PPFAS  ");
 
@@ -89,7 +86,7 @@ class InvestmentServiceFundTest {
 
     @Test
     void deleteUnknownFundThrows() {
-        when(dao.findAll()).thenReturn(List.of());
+        when(dao.findFund("Nope")).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.deleteFund("Nope"))
                 .isInstanceOf(IllegalArgumentException.class);

@@ -13,6 +13,23 @@ export interface ExpenseRow {
   occasion: string; // trip/occasion tag; "" for an ordinary expense
 }
 
+/** One keyset page; pass `nextCursor` back for the next page (null = last page). */
+export interface CursorPage<T> {
+  items: T[];
+  nextCursor: string | null;
+}
+
+/** Count and sum across all pages of a filtered expense list. */
+export interface ExpenseTotals {
+  count: number;
+  total: number;
+}
+
+export interface ExpenseFilters {
+  month?: string; // yyyy-MM
+  category?: string;
+}
+
 export interface InvestmentRow {
   id: number;
   date: string; // ISO yyyy-MM-dd

@@ -2,6 +2,7 @@ package com.expensetracker.web;
 
 import java.io.UncheckedIOException;
 
+import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -25,6 +26,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ProblemDetail handleNotFound(IllegalArgumentException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "Resource not found.");
+    }
+
+    /**
+     * Out-of-range query parameters on {@code @Validated} controllers (e.g. a page
+     * {@code limit} above its {@code @Max}) — a client error, so 400 rather than
+     * falling through to the container's error dispatch.
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ProblemDetail handleConstraintViolation(ConstraintViolationException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Invalid request parameter.");
     }
 
     /** Backing-store / workbook failures — log the cause, return a generic 500. */

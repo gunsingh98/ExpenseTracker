@@ -2,9 +2,12 @@ import type {
   AuditRow,
   BalanceInput,
   BalanceRow,
+  CursorPage,
   DashboardSummary,
+  ExpenseFilters,
   ExpenseInput,
   ExpenseRow,
+  ExpenseTotals,
   IncomeInput,
   IncomeRow,
   InvestmentInput,
@@ -154,6 +157,13 @@ async function requestBlob(path: string, allowRefresh = true): Promise<Blob> {
   return res.blob();
 }
 
+/** URL query string from the defined, non-empty params. */
+function query(params: Record<string, string | undefined>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v) q.set(k, v);
+  return q.toString();
+}
+
 export const api = {
   // --- auth ---
   me: () => request<{ username: string }>("GET", "/api/me"),
@@ -173,6 +183,17 @@ export const api = {
 
   // --- expenses ---
   expenses: () => request<ExpenseRow[]>("GET", "/api/expenses"),
+  /** One keyset page of expenses, newest first; omit `cursor` for the first page. */
+  expensePage: (filters: ExpenseFilters, cursor?: string | null, limit = 50) =>
+    request<CursorPage<ExpenseRow>>(
+      "GET",
+      `/api/expenses/page?${query({ ...filters, cursor: cursor ?? undefined, limit: String(limit) })}`,
+    ),
+  /** Count and sum over every page matching `filters`. */
+  expenseTotals: (filters: ExpenseFilters) =>
+    request<ExpenseTotals>("GET", `/api/expenses/totals?${query({ ...filters })}`),
+  /** Months (yyyy-MM) that have expenses, newest first. */
+  expenseMonths: () => request<string[]>("GET", "/api/expenses/months"),
   addExpense: (input: ExpenseInput) => request<void>("POST", "/api/expenses", input),
   updateExpense: (id: number, input: ExpenseInput) =>
     request<void>("PUT", `/api/expenses/${id}`, input),

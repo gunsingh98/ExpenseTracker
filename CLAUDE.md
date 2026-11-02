@@ -55,8 +55,10 @@ table and creates it idempotently in a `@PostConstruct initSchema()`
 (Spring `JdbcTemplate`, no ORM). Every mutating service method records to the
 `AuditService` capturing the before/after rows — so write paths should go through
 a service, not a DAO directly. The dashboard (`DashboardService`) computes all
-KPIs/aggregates in Java over rows it reads; it does **not** rely on spreadsheet
-formulas.
+KPIs/aggregates from `GROUP BY` queries in the DAOs (folded into the summary in
+Java); it never loads whole tables and does **not** rely on spreadsheet formulas.
+List endpoints that can grow (e.g. `GET /api/expenses/page`) use keyset
+pagination on `(date, id)` via `PageCursor`, not `OFFSET`.
 
 **Excel is primarily an export format, now with a one-time import.**
 `WorkbookExportService` renders the DB into a bundled blank template

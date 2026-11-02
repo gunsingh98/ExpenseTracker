@@ -1,46 +1,50 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { EmptyState, ErrorBanner, Field, Loading, Modal, PageHeader } from "../components/ui";
 import { formatDate, formatMoney, todayIso } from "../format";
-import { useAsync } from "../hooks";
-import type { ExpenseInput, ExpenseRow, Lists } from "../types";
+import { useAsync, useCursorList, useInView } from "../hooks";
+import type { ExpenseFilters, ExpenseInput, ExpenseRow, Lists } from "../types";
 
 const ALL = "__all__";
 
 export default function Expenses() {
-  const expensesQ = useAsync(() => api.expenses(), []);
+  // Filters live in the URL so a filtered view survives reloads and can be shared.
+  const [params, setParams] = useSearchParams();
+  const month = params.get("month") ?? "";
+  const category = params.get("category") ?? "";
+  const filters: ExpenseFilters = { month: month || undefined, category: category || undefined };
+
+  const list = useCursorList((cursor) => api.expensePage(filters, cursor), [month, category]);
+  const totalsQ = useAsync(() => api.expenseTotals(filters), [month, category]);
+  const monthsQ = useAsync(() => api.expenseMonths(), []);
   const listsQ = useAsync(() => api.lists(), []);
   const [editing, setEditing] = useState<ExpenseRow | "new" | null>(null);
-  const [monthFilter, setMonthFilter] = useState<string>(ALL);
-  const [categoryFilter, setCategoryFilter] = useState<string>(ALL);
+  const sentinel = useInView(list.loadMore);
 
-  const rows = expensesQ.data ?? [];
+  function setFilter(key: "month" | "category", value: string) {
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value === ALL) next.delete(key);
+        else next.set(key, value);
+        return next;
+      },
+      { replace: true },
+    );
+  }
 
-  const months = useMemo(() => {
-    const set = new Set(rows.map((r) => r.date.slice(0, 7)));
-    return [...set].sort().reverse();
-  }, [rows]);
+  if (list.loading && list.items.length === 0 && !list.error) return <Loading />;
+  if (list.error && list.items.length === 0)
+    return <ErrorBanner message={list.error} onRetry={list.reload} />;
 
-  const filtered = useMemo(
-    () =>
-      rows.filter(
-        (r) =>
-          (monthFilter === ALL || r.date.startsWith(monthFilter)) &&
-          (categoryFilter === ALL || r.category === categoryFilter),
-      ),
-    [rows, monthFilter, categoryFilter],
-  );
-
-  const total = filtered.reduce((s, r) => s + r.amount, 0);
-
-  if (expensesQ.loading && !expensesQ.data) return <Loading />;
-  if (expensesQ.error) return <ErrorBanner message={expensesQ.error} onRetry={expensesQ.reload} />;
+  const totals = totalsQ.data;
 
   return (
     <div className="page">
       <PageHeader
         title="Expenses"
-        subtitle={`${filtered.length} entries · ${formatMoney(total)}`}
+        subtitle={totals ? `${totals.count} entries · ${formatMoney(totals.total)}` : " "}
         actions={
           <button className="btn primary" onClick={() => setEditing("new")}>
             + Add expense
@@ -49,17 +53,17 @@ export default function Expenses() {
       />
 
       <div className="filters">
-        <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} aria-label="Month">
+        <select value={month || ALL} onChange={(e) => setFilter("month", e.target.value)} aria-label="Month">
           <option value={ALL}>All months</option>
-          {months.map((m) => (
+          {(monthsQ.data ?? []).map((m) => (
             <option key={m} value={m}>
               {formatMonth(m)}
             </option>
           ))}
         </select>
         <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
+          value={category || ALL}
+          onChange={(e) => setFilter("category", e.target.value)}
           aria-label="Category"
         >
           <option value={ALL}>All categories</option>
@@ -71,11 +75,11 @@ export default function Expenses() {
         </select>
       </div>
 
-      {filtered.length === 0 ? (
+      {list.items.length === 0 && !list.loading ? (
         <EmptyState message="No expenses match these filters." />
       ) : (
-        <ul className="row-list">
-          {filtered.map((r) => (
+        <ul className="row-list" aria-busy={list.loading || list.loadingMore}>
+          {list.items.map((r) => (
             <li key={r.id} className="row-item" onClick={() => setEditing(r)}>
               <div className="row-main">
                 <span className="row-title">{r.description || r.category}</span>
@@ -91,6 +95,18 @@ export default function Expenses() {
         </ul>
       )}
 
+      {list.error && list.items.length > 0 && (
+        <ErrorBanner message={list.error} onRetry={list.loadMore} />
+      )}
+      {list.hasMore && !list.error && (
+        // Auto-loads when scrolled near; the button is the keyboard/no-observer fallback.
+        <div ref={sentinel} className="load-more">
+          <button className="btn" onClick={list.loadMore} disabled={list.loadingMore}>
+            {list.loadingMore ? "Loading…" : "Load more"}
+          </button>
+        </div>
+      )}
+
       {editing && listsQ.data && (
         <ExpenseModal
           lists={listsQ.data}
@@ -98,7 +114,9 @@ export default function Expenses() {
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
-            expensesQ.reload();
+            list.reload();
+            totalsQ.reload();
+            monthsQ.reload();
           }}
         />
       )}

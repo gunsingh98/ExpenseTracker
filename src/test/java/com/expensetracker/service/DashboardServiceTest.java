@@ -12,18 +12,25 @@ import com.expensetracker.model.InvestmentInput;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.sqlite.SQLiteDataSource;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Random;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
 /**
  * Verifies the SUMIFS-mirroring aggregation against hand-computed totals, driven
- * by real SQLite-backed DAOs (data inserted via the normal {@code *Input} path).
+ * by real SQLite-backed DAOs (data inserted via the normal {@code *Input} path),
+ * and against {@link LegacyDashboardCalculator} (the original all-rows-in-Java
+ * implementation) on randomized data.
  */
 class DashboardServiceTest {
 
@@ -234,6 +241,96 @@ class DashboardServiceTest {
 
         assertThat(s.year()).isEqualTo(2026);
         assertThat(s.expensesThisYear()).isEqualTo(200.0);
+    }
+
+    @Test
+    void gainLossIsPerFundNotPerValuedRow() {
+        // A fund contributed to monthly but valued once, on its latest row: 12 x 100 invested, worth 1300.
+        for (int m = 1; m <= 12; m++) {
+            namedInvestment(LocalDate.of(2026, m, 1), "Mutual Funds", "PPFAS", 100, m == 12 ? 1300.0 : null);
+        }
+        // Same fund under a padded name still counts as one fund: 500 invested, worth 450.
+        namedInvestment(LocalDate.of(2026, 1, 1), "Stocks", "Gold", 300, null);
+        namedInvestment(LocalDate.of(2026, 2, 1), "Stocks", " Gold ", 200, 450.0);
+        // Never valued: no market value to compare against, so excluded from gain/loss.
+        namedInvestment(LocalDate.of(2026, 1, 1), "Stocks", "Infy", 9999, null);
+
+        DashboardSummary s = service.summary(2026);
+
+        assertThat(s.currentInvestmentValue()).isEqualTo(1750.0); // 1300 + 450
+        assertThat(s.investmentGainLoss()).isCloseTo(50.0, within(1e-9)); // (1300 - 1200) + (450 - 500)
+    }
+
+    /**
+     * The SQL-backed summary must match the original in-memory implementation on
+     * messy data (padded/blank/null labels, funds valued once, several balance
+     * snapshots, unknown account types) for every year, gain/loss aside (changed
+     * on purpose; see {@link #gainLossIsPerFundNotPerValuedRow}).
+     */
+    @ParameterizedTest
+    @ValueSource(longs = {1, 2, 3, 42, 2026})
+    void matchesLegacyInMemoryCalculationOnRandomData(long seed) {
+        Random rnd = new Random(seed);
+        String[] categories = {"Groceries", " Groceries", "Groceries ", "Rent", "Fuel	", "", "  ", null};
+        String[] people = {"Me", " Me", "Husband", "", null};
+        String[] occasions = {null, null, null, "", "  ", "Goa Trip", " Goa Trip", "Diwali 2026"};
+        for (int i = 0; i < 400; i++) {
+            expenseDao.insert(new ExpenseInput(randomDate(rnd), pick(rnd, people), pick(rnd, categories), "",
+                    money(rnd), "UPI", false, "", pick(rnd, occasions)));
+        }
+        for (int i = 0; i < 80; i++) {
+            incomeDao.insert(new IncomeInput(randomDate(rnd), pick(rnd, people), "Salary", "", money(rnd) * 10,
+                    "Bank Account", ""));
+        }
+        // Each fund has a fixed type and owner, and (as InvestmentService keeps it) its value on its
+        // latest row only. Name padding varies per row. One fund is never valued.
+        String[][] funds = {
+                {"PPFAS", "Mutual Funds", "Me"}, {"Nippon", "Mutual Funds", "Husband"},
+                {"Infy", "Stocks", "Me"}, {"Gold", " Stocks", ""}, {"", "Mutual Funds", "Me"},
+                {"FD", "", null}, {"Never Valued", "Mutual Funds", "Me"}};
+        for (String[] f : funds) {
+            LocalDate[] dates = new LocalDate[1 + rnd.nextInt(8)];
+            Arrays.setAll(dates, i -> randomDate(rnd));
+            Arrays.sort(dates);
+            for (int i = 0; i < dates.length; i++) {
+                boolean latest = i == dates.length - 1 && !f[0].equals("Never Valued");
+                String name = rnd.nextBoolean() ? f[0] : " " + f[0] + " ";
+                investmentDao.insert(new InvestmentInput(dates[i], f[2], f[1], name, "Brokerage", money(rnd),
+                        latest ? money(rnd) * 3 : null, ""));
+            }
+        }
+        String[] accountTypes = {"Bank Account", " Cash", "Savings Account", "Other Asset",
+                "Loan (Liability)", "Credit Card (Liability)", "Mystery", null};
+        for (LocalDate asOn : new LocalDate[] {LocalDate.of(2025, 12, 31), LocalDate.of(2026, 6, 30)}) {
+            for (String type : accountTypes) {
+                double amount = type != null && type.contains("Liability") ? -money(rnd) : money(rnd);
+                balanceDao.insert(new BalanceInput(asOn, "Me", type, "", amount, ""));
+            }
+        }
+
+        LegacyDashboardCalculator legacy =
+                new LegacyDashboardCalculator(expenseDao, investmentDao, incomeDao, balanceDao);
+        Comparator<Double> close = (a, b) -> Math.abs(a - b) < 1e-6 ? 0 : Double.compare(a, b);
+        for (Integer year : new Integer[] {null, 2024, 2025, 2026, 2030}) {
+            assertThat(service.summary(year))
+                    .as("year %s", year)
+                    .usingRecursiveComparison()
+                    .ignoringFields("investmentGainLoss")
+                    .withComparatorForType(close, Double.class)
+                    .isEqualTo(legacy.summary(year));
+        }
+    }
+
+    private static LocalDate randomDate(Random rnd) {
+        return LocalDate.of(2024, 1, 1).plusDays(rnd.nextInt(3 * 365));
+    }
+
+    private static double money(Random rnd) {
+        return Math.round(rnd.nextDouble() * 500_000) / 100.0; // 0.00 - 5000.00
+    }
+
+    private static <T> T pick(Random rnd, T[] values) {
+        return values[rnd.nextInt(values.length)];
     }
 
     private void expense(LocalDate date, String paidBy, String category, double amount) {

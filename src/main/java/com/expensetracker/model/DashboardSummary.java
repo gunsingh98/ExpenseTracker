@@ -4,8 +4,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Everything the dashboard renders for a selected year, computed in Java from
- * the raw rows (mirrors the workbook's SUMIFS logic, independent of Excel).
+ * Everything the dashboard renders for a selected year, computed from grouped
+ * SQL totals (mirrors the workbook's SUMIFS logic, independent of Excel).
  */
 public record DashboardSummary(
         int year,

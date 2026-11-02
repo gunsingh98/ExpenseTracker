@@ -941,3 +941,10 @@ textarea:focus {
   background: #fef3c7;
   color: #b45309;
 }
+
+/* Infinite-scroll sentinel / "Load more" fallback under paginated lists. */
+.load-more {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0;
+}
