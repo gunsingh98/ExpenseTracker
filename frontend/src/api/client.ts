@@ -7,6 +7,7 @@ import type {
   ExpenseFilters,
   ExpenseInput,
   ExpenseRow,
+  ExpenseSort,
   ExpenseTotals,
   IncomeInput,
   IncomeRow,
@@ -183,11 +184,11 @@ export const api = {
 
   // --- expenses ---
   expenses: () => request<ExpenseRow[]>("GET", "/api/expenses"),
-  /** One keyset page of expenses, newest first; omit `cursor` for the first page. */
-  expensePage: (filters: ExpenseFilters, cursor?: string | null, limit = 50) =>
+  /** One keyset page of expenses in `sort` order; omit `cursor` for the first page. */
+  expensePage: (filters: ExpenseFilters, sort: ExpenseSort, cursor?: string | null, limit = 50) =>
     request<CursorPage<ExpenseRow>>(
       "GET",
-      `/api/expenses/page?${query({ ...filters, cursor: cursor ?? undefined, limit: String(limit) })}`,
+      `/api/expenses/page?${query({ ...filters, sort, cursor: cursor ?? undefined, limit: String(limit) })}`,
     ),
   /** Count and sum over every page matching `filters`. */
   expenseTotals: (filters: ExpenseFilters) =>

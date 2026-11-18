@@ -2,6 +2,8 @@ package com.expensetracker.service;
 
 import com.expensetracker.audit.AuditService;
 import com.expensetracker.data.ExpenseDao;
+import com.expensetracker.data.ExpenseFilter;
+import com.expensetracker.data.ExpenseSort;
 import com.expensetracker.model.CursorPage;
 import com.expensetracker.model.ExpenseInput;
 import com.expensetracker.model.ExpenseRow;
@@ -44,7 +46,7 @@ class ExpenseServicePageTest {
         String cursor = null;
         int pages = 0;
         do {
-            CursorPage<ExpenseRow> page = service.page(cursor, 3, null, " ");
+            CursorPage<ExpenseRow> page = service.page(cursor, 3, new ExpenseFilter(null, " ", null, null), ExpenseSort.DATE_DESC);
             page.items().forEach(r -> ids.add(r.id()));
             cursor = page.nextCursor();
             pages++;
@@ -58,12 +60,12 @@ class ExpenseServicePageTest {
     void exactlyFullLastPageHasNoNextCursor() {
         dao.insert(input(LocalDate.of(2026, 5, 1)));
         dao.insert(input(LocalDate.of(2026, 5, 2)));
-        assertThat(service.page(null, 2, null, null).nextCursor()).isNull();
+        assertThat(service.page(null, 2, ExpenseFilter.NONE, ExpenseSort.DATE_DESC).nextCursor()).isNull();
     }
 
     @Test
     void malformedCursorIsRejected() {
-        assertThatThrownBy(() -> service.page("garbage", 10, null, null))
+        assertThatThrownBy(() -> service.page("garbage", 10, ExpenseFilter.NONE, ExpenseSort.DATE_DESC))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
