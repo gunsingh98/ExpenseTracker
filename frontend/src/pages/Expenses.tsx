@@ -4,30 +4,63 @@ import { api } from "../api/client";
 import { EmptyState, ErrorBanner, Field, Loading, Modal, PageHeader } from "../components/ui";
 import { formatDate, formatMoney, todayIso } from "../format";
 import { useAsync, useCursorList, useInView } from "../hooks";
-import type { ExpenseFilters, ExpenseInput, ExpenseRow, Lists } from "../types";
+import type { ExpenseFilters, ExpenseInput, ExpenseRow, ExpenseSort, Lists } from "../types";
 
 const ALL = "__all__";
 
+type FilterKey = "month" | "category" | "paidBy" | "paymentMethod";
+const FILTER_KEYS: FilterKey[] = ["month", "category", "paidBy", "paymentMethod"];
+
+const SORTS: { value: ExpenseSort; label: string }[] = [
+  { value: "DATE_DESC", label: "Newest first" },
+  { value: "DATE_ASC", label: "Oldest first" },
+  { value: "AMOUNT_DESC", label: "Amount: high to low" },
+  { value: "AMOUNT_ASC", label: "Amount: low to high" },
+];
+const DEFAULT_SORT: ExpenseSort = "DATE_DESC";
+
 export default function Expenses() {
-  // Filters live in the URL so a filtered view survives reloads and can be shared.
+  // Filters and sort live in the URL so a view survives reloads and can be shared.
   const [params, setParams] = useSearchParams();
   const month = params.get("month") ?? "";
   const category = params.get("category") ?? "";
-  const filters: ExpenseFilters = { month: month || undefined, category: category || undefined };
+  const paidBy = params.get("paidBy") ?? "";
+  const paymentMethod = params.get("paymentMethod") ?? "";
+  const sortParam = params.get("sort");
+  const sort = SORTS.some((s) => s.value === sortParam) ? (sortParam as ExpenseSort) : DEFAULT_SORT;
+  const filters: ExpenseFilters = {
+    month: month || undefined,
+    category: category || undefined,
+    paidBy: paidBy || undefined,
+    paymentMethod: paymentMethod || undefined,
+  };
+  const filterDeps = [month, category, paidBy, paymentMethod];
+  const anyFilter = filterDeps.some(Boolean);
 
-  const list = useCursorList((cursor) => api.expensePage(filters, cursor), [month, category]);
-  const totalsQ = useAsync(() => api.expenseTotals(filters), [month, category]);
+  const list = useCursorList((cursor) => api.expensePage(filters, sort, cursor), [...filterDeps, sort]);
+  const totalsQ = useAsync(() => api.expenseTotals(filters), filterDeps);
   const monthsQ = useAsync(() => api.expenseMonths(), []);
   const listsQ = useAsync(() => api.lists(), []);
   const [editing, setEditing] = useState<ExpenseRow | "new" | null>(null);
   const sentinel = useInView(list.loadMore);
 
-  function setFilter(key: "month" | "category", value: string) {
+  function setParam(key: FilterKey | "sort", value: string) {
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev);
-        if (value === ALL) next.delete(key);
+        if (value === ALL || (key === "sort" && value === DEFAULT_SORT)) next.delete(key);
         else next.set(key, value);
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function clearFilters() {
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        FILTER_KEYS.forEach((k) => next.delete(k));
         return next;
       },
       { replace: true },
@@ -53,7 +86,7 @@ export default function Expenses() {
       />
 
       <div className="filters">
-        <select value={month || ALL} onChange={(e) => setFilter("month", e.target.value)} aria-label="Month">
+        <select value={month || ALL} onChange={(e) => setParam("month", e.target.value)} aria-label="Month">
           <option value={ALL}>All months</option>
           {(monthsQ.data ?? []).map((m) => (
             <option key={m} value={m}>
@@ -63,7 +96,7 @@ export default function Expenses() {
         </select>
         <select
           value={category || ALL}
-          onChange={(e) => setFilter("category", e.target.value)}
+          onChange={(e) => setParam("category", e.target.value)}
           aria-label="Category"
         >
           <option value={ALL}>All categories</option>
@@ -73,6 +106,38 @@ export default function Expenses() {
             </option>
           ))}
         </select>
+        <select value={paidBy || ALL} onChange={(e) => setParam("paidBy", e.target.value)} aria-label="Paid by">
+          <option value={ALL}>Anyone</option>
+          {(listsQ.data?.people ?? []).map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+        <select
+          value={paymentMethod || ALL}
+          onChange={(e) => setParam("paymentMethod", e.target.value)}
+          aria-label="Payment method"
+        >
+          <option value={ALL}>All payment methods</option>
+          {(listsQ.data?.paymentMethods ?? []).map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+        <select value={sort} onChange={(e) => setParam("sort", e.target.value)} aria-label="Sort by">
+          {SORTS.map((s) => (
+            <option key={s.value} value={s.value}>
+              Sort: {s.label}
+            </option>
+          ))}
+        </select>
+        {anyFilter && (
+          <button className="btn" onClick={clearFilters}>
+            Clear filters
+          </button>
+        )}
       </div>
 
       {list.items.length === 0 && !list.loading ? (

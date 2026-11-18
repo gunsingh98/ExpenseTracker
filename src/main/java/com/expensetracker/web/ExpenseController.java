@@ -1,5 +1,7 @@
 package com.expensetracker.web;
 
+import com.expensetracker.data.ExpenseFilter;
+import com.expensetracker.data.ExpenseSort;
 import com.expensetracker.model.CursorPage;
 import com.expensetracker.model.ExpenseInput;
 import com.expensetracker.model.ExpenseRow;
@@ -43,16 +45,19 @@ public class ExpenseController {
 
     /**
      * Keyset-paginated list for the Expenses page. {@code month} is {@code yyyy-MM};
-     * {@code cursor} is the {@code nextCursor} from the previous page.
+     * {@code cursor} is the {@code nextCursor} from the previous page (same {@code sort}).
      */
     @GetMapping("/page")
     public CursorPage<ExpenseRow> page(
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "50") @Min(1) @Max(200) int limit,
             @RequestParam(required = false) YearMonth month,
-            @RequestParam(required = false) String category) {
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String paidBy,
+            @RequestParam(required = false) String paymentMethod,
+            @RequestParam(defaultValue = "DATE_DESC") ExpenseSort sort) {
         try {
-            return expenses.page(cursor, limit, month, category);
+            return expenses.page(cursor, limit, new ExpenseFilter(month, category, paidBy, paymentMethod), sort);
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid cursor");
         }
@@ -62,8 +67,10 @@ public class ExpenseController {
     @GetMapping("/totals")
     public ExpenseTotals totals(
             @RequestParam(required = false) YearMonth month,
-            @RequestParam(required = false) String category) {
-        return expenses.totals(month, category);
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String paidBy,
+            @RequestParam(required = false) String paymentMethod) {
+        return expenses.totals(new ExpenseFilter(month, category, paidBy, paymentMethod));
     }
 
     /** Months ({@code yyyy-MM}) that have expenses, newest first. */

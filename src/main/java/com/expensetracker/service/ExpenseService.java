@@ -4,6 +4,8 @@ import com.expensetracker.audit.AuditAction;
 import com.expensetracker.audit.AuditService;
 import com.expensetracker.audit.EntityType;
 import com.expensetracker.data.ExpenseDao;
+import com.expensetracker.data.ExpenseFilter;
+import com.expensetracker.data.ExpenseSort;
 import com.expensetracker.data.PageCursor;
 import com.expensetracker.model.CursorPage;
 import com.expensetracker.model.ExpenseInput;
@@ -31,24 +33,24 @@ public class ExpenseService {
     }
 
     /**
-     * One page of expenses, most recent first, after the opaque {@code cursor} (null
-     * for the first page). Fetches one extra row to learn whether another page exists
+     * One page of expenses in {@code sort} order, after the opaque {@code cursor} (null
+     * for the first page; it must come from a walk in the same {@code sort}). Fetches one extra row to learn whether another page exists
      * without a COUNT. A malformed cursor throws {@link IllegalArgumentException}.
      */
-    public CursorPage<ExpenseRow> page(String cursor, int limit, YearMonth month, String category) {
+    public CursorPage<ExpenseRow> page(String cursor, int limit, ExpenseFilter filter, ExpenseSort sort) {
         PageCursor after = cursor == null || cursor.isBlank() ? null : PageCursor.decode(cursor);
-        List<ExpenseRow> rows = dao.findPage(after, limit + 1, month, blankToNull(category));
+        List<ExpenseRow> rows = dao.findPage(after, limit + 1, filter, sort);
         if (rows.size() <= limit) {
             return new CursorPage<>(rows, null);
         }
         List<ExpenseRow> items = rows.subList(0, limit);
         ExpenseRow last = items.getLast();
-        return new CursorPage<>(List.copyOf(items), new PageCursor(last.date(), last.id()).encode());
+        return new CursorPage<>(List.copyOf(items), new PageCursor(sort.keyOf(last), last.id()).encode());
     }
 
     /** Count and sum across all pages for the same filters as {@link #page}. */
-    public ExpenseTotals totals(YearMonth month, String category) {
-        return dao.totals(month, blankToNull(category));
+    public ExpenseTotals totals(ExpenseFilter filter) {
+        return dao.totals(filter);
     }
 
     /** Months that have expenses, newest first, the page's month-filter options. */
@@ -80,9 +82,5 @@ public class ExpenseService {
             throw new IllegalArgumentException("No expense with id " + id);
         }
         return row;
-    }
-
-    private static String blankToNull(String s) {
-        return s == null || s.isBlank() ? null : s;
     }
 }

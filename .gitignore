@@ -1,5 +1,6 @@
 # Java / Gradle
 build/
+bin/
 .gradle/
 *.class
 
@@ -21,7 +22,7 @@ credentials*.json
 !src/test/resources/sample-tracker.xlsx
 
 # SQLite data store (financial data + audit log) and its WAL sidecars
-data/
+/data/
 *.db
 *.db-wal
 *.db-shm

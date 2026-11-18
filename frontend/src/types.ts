@@ -28,7 +28,11 @@ export interface ExpenseTotals {
 export interface ExpenseFilters {
   month?: string; // yyyy-MM
   category?: string;
+  paidBy?: string;
+  paymentMethod?: string;
 }
+
+export type ExpenseSort = "DATE_DESC" | "DATE_ASC" | "AMOUNT_DESC" | "AMOUNT_ASC";
 
 export interface InvestmentRow {
   id: number;
